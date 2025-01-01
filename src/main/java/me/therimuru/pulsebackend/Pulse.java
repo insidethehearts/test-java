@@ -1,0 +1,97 @@
+package me.therimuru.pulsebackend;
+
+import me.therimuru.pulsebackend.httphandlers.PulseHttpHandler;
+import me.therimuru.pulsebackend.httphandlers.auth.RegisterHttpHandler;
+import me.therimuru.pulsebackend.httphandlers.countries.CountriesHttpHandler;
+import me.therimuru.pulsebackend.httphandlers.countries.CountryByAlpha2HttpHandler;
+import me.therimuru.pulsebackend.logger.LogType;
+import me.therimuru.pulsebackend.logger.PulseLogger;
+import me.therimuru.pulsebackend.httphandlers.ping.PingHttpHandler;
+import com.sun.net.httpserver.HttpServer;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * @author therimuru_
+ */
+
+public class Pulse {
+
+    private static final String POSTGRES_USER = "therimuru";
+    private static final String POSTGRES_PASSWORD = "therimuru";
+    private static final String POSTGRES_JDBC_URL = "jdbc:postgresql://127.0.0.1/test";
+
+    private static int HTTPSERVER_PORT;
+
+    private static HttpServer httpServer;
+    private static DatabaseManager databaseManager;
+
+    private static List<PulseHttpHandler> httpHandlers = new ArrayList<>();
+
+    public static void main(String[] args) {
+
+        PulseLogger.debugMode(true);
+
+        HTTPSERVER_PORT = 8080;
+
+        try {
+            initDB();
+            PulseLogger.log(LogType.FINE, "Successfully initialized: PostgresSQL connection");
+        } catch (SQLException e) {
+            PulseLogger.log(LogType.ERROR, "An error occurred while attempting to initialize a connection to the database. Information has been output to the console.");
+            e.printStackTrace();
+            exit(1);
+        } catch (ClassNotFoundException e) {
+            PulseLogger.log(LogType.ERROR, "An error occurred while attempting to initialize a connection to the database. Information has been output to the console.");
+            e.printStackTrace();
+            exit(2);
+        }
+
+        preloadHandlers();
+
+        try {
+            initHttpServer(HTTPSERVER_PORT);
+            PulseLogger.log(LogType.FINE, "Successfully initialized: HttpServer");
+        } catch (IOException e) {
+            PulseLogger.log(LogType.ERROR, "An error occurred while attempting to initialize the HTTP server. Information is displayed in the console.");
+            e.printStackTrace();
+            exit(3);
+        }
+    }
+
+    private static void initDB() throws SQLException, ClassNotFoundException {
+        databaseManager = new DatabaseManager(POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_JDBC_URL);
+    }
+
+    private static void preloadHandlers() {
+        httpHandlers.add(new PingHttpHandler(databaseManager));
+
+        httpHandlers.add(new CountriesHttpHandler(databaseManager));
+        httpHandlers.add(new CountryByAlpha2HttpHandler(databaseManager));
+
+        httpHandlers.add(new RegisterHttpHandler(databaseManager));
+    }
+
+    private static void initHttpServer(int port) throws IOException {
+        httpServer = HttpServer.create(new InetSocketAddress(port),0);
+        httpServer.setExecutor(null);
+
+        httpHandlers.forEach(pulseHttpHandler -> httpServer.createContext(pulseHttpHandler.getAbsoluteContext(), pulseHttpHandler));
+
+        httpServer.start();
+
+        PulseLogger.log(LogType.DEBUG, "Listening port: " + port);
+    }
+
+    public static void exit(int code) {
+        try {
+            databaseManager.disconnect();
+            httpServer.stop(0);
+        } catch (SQLException ignored) {}
+        System.exit(code);
+    }
+}
