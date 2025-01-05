@@ -20,6 +20,11 @@ public class DatabaseManager {
     }
 
     private void initializeTables() throws SQLException {
+        // TODO remove debug
+        try (PreparedStatement statement = connection.prepareStatement("DROP TABLE users")) {
+            statement.executeUpdate();
+        }
+
         try (PreparedStatement statement = connection.prepareStatement("""
                 CREATE TABLE IF NOT EXISTS users (
                   uid SERIAL PRIMARY KEY,

@@ -1,9 +1,14 @@
 package me.therimuru.pulsebackend;
 
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.JWTVerifier;
+import com.auth0.jwt.algorithms.Algorithm;
 import me.therimuru.pulsebackend.httphandlers.PulseHttpHandler;
 import me.therimuru.pulsebackend.httphandlers.auth.RegisterHttpHandler;
+import me.therimuru.pulsebackend.httphandlers.auth.SignInHttpHandler;
 import me.therimuru.pulsebackend.httphandlers.countries.CountriesHttpHandler;
 import me.therimuru.pulsebackend.httphandlers.countries.CountryByAlpha2HttpHandler;
+import me.therimuru.pulsebackend.httphandlers.me.GetProfileHttpHandler;
 import me.therimuru.pulsebackend.logger.LogType;
 import me.therimuru.pulsebackend.logger.PulseLogger;
 import me.therimuru.pulsebackend.httphandlers.ping.PingHttpHandler;
@@ -21,6 +26,10 @@ import java.util.List;
 
 public class Pulse {
 
+    private static String JWT_SECRET = "_SECRET_HERE_";
+    private static JWTVerifier jwtVerifier;
+    private static Algorithm algorithm;
+
     private static final String POSTGRES_USER = "therimuru";
     private static final String POSTGRES_PASSWORD = "therimuru";
     private static final String POSTGRES_JDBC_URL = "jdbc:postgresql://127.0.0.1/test";
@@ -37,6 +46,11 @@ public class Pulse {
         PulseLogger.debugMode(true);
 
         HTTPSERVER_PORT = 8080;
+
+        algorithm = Algorithm.HMAC256(JWT_SECRET);
+        jwtVerifier = JWT.require(algorithm)
+                .withIssuer(JWT_SECRET)
+                .build();
 
         try {
             initDB();
@@ -74,6 +88,9 @@ public class Pulse {
         httpHandlers.add(new CountryByAlpha2HttpHandler(databaseManager));
 
         httpHandlers.add(new RegisterHttpHandler(databaseManager));
+        httpHandlers.add(new SignInHttpHandler(databaseManager));
+
+        httpHandlers.add(new GetProfileHttpHandler(databaseManager));
     }
 
     private static void initHttpServer(int port) throws IOException {
@@ -85,6 +102,14 @@ public class Pulse {
         httpServer.start();
 
         PulseLogger.log(LogType.DEBUG, "Listening port: " + port);
+    }
+
+    public static Algorithm getAlgorithm() {
+        return algorithm;
+    }
+
+    public static JWTVerifier getVerifier() {
+        return jwtVerifier;
     }
 
     public static void exit(int code) {
